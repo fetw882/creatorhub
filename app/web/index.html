@@ -1949,6 +1949,19 @@
       <div class="table-wrap mini-table"><table id="acc-table" aria-label="平台账号列表"><thead><tr><th>账号</th><th>归属人 / 标签</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table></div>
     </div>
 
+    <div class="card" data-section="accounts" id="owner-overview-card">
+      <div class="card-head">
+        <span class="card-ic"><svg><use href="#i-user"/></svg></span>
+        <h2>归属人总览 <span class="sub">按归属人汇总名下账号 · 点击一行展开明细</span></h2>
+        <div class="right row" style="gap:8px">
+          <select id="ov-scope" aria-label="总览范围" onchange="refreshOwnerOverview()"><option value="current">当前平台</option><option value="all">全平台</option></select>
+          <button class="ghost sm" type="button" onclick="refreshOwnerOverview()"><svg><use href="#i-bolt"/></svg>刷新</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="owner-overview-table" class="owner-ov" aria-label="归属人总览"><thead><tr><th>归属人</th><th>账号数</th><th>正常</th><th>作品</th><th>粉丝</th><th>未读私信</th><th>待处理任务</th><th>标签</th></tr></thead><tbody><tr><td colspan="8" class="mut">加载中…</td></tr></tbody></table></div>
+      <p class="field-help">作品数来自「我的内容 → 同步作品」已同步到本地的作品，未同步的账号显示 0；平台主页作品数见明细括号。</p>
+    </div>
+
     <!-- 暂时隐藏聚合私信入口与内容，保留功能；移除 hidden 即可恢复。 -->
     <div class="card notsh-only" data-section="inbox" hidden>
       <div class="card-head">

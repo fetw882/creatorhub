@@ -10590,6 +10590,84 @@ async def accounts_workbench(platform: str = ""):
     } for account in accounts]
 
 
+@app.get("/api/overview/owners")
+async def overview_owners(platform: str = ""):
+    """按归属人汇总账号(运营部总览)。只返回统计与公开资料,不含任何登录态字段。"""
+    unassigned = "未分配"
+    with get_session() as session:
+        stmt = select(DouyinAccount)
+        if platform:
+            stmt = stmt.where(DouyinAccount.platform == platform)
+        accounts = session.exec(stmt.order_by(DouyinAccount.id)).all()
+        ids = [a.id for a in accounts]
+        works: dict[int, int] = {}
+        synced: dict[int, Any] = {}
+        unread: dict[int, int] = {}
+        rollups = {i: {"total": 0, "failed": 0} for i in ids}
+        if ids:
+            for aid, cnt, last in session.exec(select(
+                    AccountWork.account_id, func.count(AccountWork.id),
+                    func.max(AccountWork.fetched_at)).where(
+                    AccountWork.account_id.in_(ids)).group_by(AccountWork.account_id)).all():
+                works[aid] = int(cnt or 0)
+                synced[aid] = last
+            for aid, total in session.exec(select(
+                    DmConversation.account_id, func.sum(DmConversation.unread_count)).where(
+                    DmConversation.account_id.in_(ids)).group_by(DmConversation.account_id)).all():
+                unread[aid] = int(total or 0)
+            task_specs = (
+                (KeywordCollectionJob, {"pending", "running"}),
+                (PublishTask, {"draft", "pending", "publishing"}),
+                (CommentTask, {"draft", "pending", "doing"}),
+                (AccountActionTask, {"draft", "pending", "doing"}),
+            )
+            for model, states in task_specs:
+                for row in session.exec(select(model.account_id, model.status).where(
+                        model.account_id.in_(ids),
+                        model.status.in_(list(states | _QUEUE_FAILED)))).all():
+                    value = rollups[row[0]]
+                    value["total"] += 1
+                    if row[1] in _QUEUE_FAILED:
+                        value["failed"] += 1
+    groups: dict[str, dict] = {}
+    for a in accounts:
+        owner = (a.owner or "").strip() or unassigned
+        g = groups.setdefault(owner, {
+            "owner": owner, "unassigned": owner == unassigned and not (a.owner or "").strip(),
+            "accounts": 0, "active_accounts": 0, "works": 0, "followers": 0,
+            "unread_dm": 0, "tasks": {"total": 0, "failed": 0}, "tags": [], "items": []})
+        tags = _load_meta_tags(a.tags)
+        last = synced.get(a.id)
+        g["accounts"] += 1
+        if (a.status or "") == "active":
+            g["active_accounts"] += 1
+        g["works"] += works.get(a.id, 0)
+        g["followers"] += int(a.follower_count or 0)
+        g["unread_dm"] += unread.get(a.id, 0)
+        t = rollups.get(a.id, {"total": 0, "failed": 0})
+        g["tasks"]["total"] += t["total"]
+        g["tasks"]["failed"] += t["failed"]
+        for tag in tags:
+            if tag not in g["tags"]:
+                g["tags"].append(tag)
+        g["items"].append({
+            "id": a.id, "platform": a.platform, "nickname": a.nickname,
+            "status": a.status, "tags": tags, "follower_count": a.follower_count,
+            "aweme_count": a.aweme_count, "works": works.get(a.id, 0),
+            "unread_dm": unread.get(a.id, 0), "tasks": t,
+            "last_synced": _queue_iso(last) if last else None,
+        })
+    named = sorted((g for g in groups.values() if not g["unassigned"]),
+                   key=lambda g: g["owner"])
+    rest = [g for g in groups.values() if g["unassigned"]]
+    result = named + rest
+    for g in result:
+        g.pop("unassigned", None)
+        g["account_items"] = g.pop("items")
+    return {"platform": platform, "owners": result,
+            "total_accounts": len(accounts), "works_source": "AccountWork(同步作品)"}
+
+
 @app.get("/api/dm/inbox")
 async def aggregate_dm_inbox(platform: str = "", unread_only: bool = False,
                              limit: int = 200):

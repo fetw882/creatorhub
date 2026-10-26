@@ -2403,7 +2403,45 @@ function addAccountMetaTag(tag) {
   if (!cur.includes(tag)) cur.push(tag);
   el.value = cur.join(","); el.focus();
 }
+// 归属人总览:按 owner 汇总账号,点击行展开名下账号明细。
+const OV_OPEN = new Set();
+async function refreshOwnerOverview() {
+  const tb = document.querySelector("#owner-overview-table tbody"); if (!tb) return;
+  const scope = $("ov-scope") ? $("ov-scope").value : "current";
+  let data;
+  try { data = await api("/api/overview/owners?platform=" + (scope === "all" ? "" : PLATFORM)); }
+  catch (e) { tb.innerHTML = `<tr><td colspan="8" class="mut">总览加载失败:${esc(e.message || e)}</td></tr>`; return; }
+  const owners = (data && data.owners) || [];
+  if (!owners.length) { tb.innerHTML = `<tr><td colspan="8" class="mut">暂无账号数据。先在上方添加账号,并设置归属人。</td></tr>`; return; }
+  const n = v => Number(v || 0).toLocaleString("zh-CN");
+  tb.innerHTML = owners.map((g, i) => {
+    const key = g.owner, open = OV_OPEN.has(key);
+    const tags = (g.tags || []).map(t => `<span class="meta-chip tag">#${esc(t)}</span>`).join("") || `<span class="meta-empty">无</span>`;
+    const tasks = g.tasks.total ? `${n(g.tasks.total)}${g.tasks.failed ? ` <span class="ov-bad">(失败 ${n(g.tasks.failed)})</span>` : ""}` : "0";
+    const rows = (g.account_items || []).map(a => `<tr>
+        <td>${esc(a.nickname || ("账号 #" + a.id))} <span class="mut">#${a.id} · ${esc(PF_NAME[a.platform] || a.platform)}</span></td>
+        <td>${a.status === "active" ? '<span class="ov-ok">正常</span>' : `<span class="ov-bad">${esc(a.status === "invalid" ? "已失效" : (a.status || "未知"))}</span>`}</td>
+        <td>${n(a.works)} <span class="mut">(主页 ${n(a.aweme_count)})</span></td>
+        <td>${n(a.follower_count)}</td><td>${n(a.unread_dm)}</td>
+        <td>${n(a.tasks.total)}${a.tasks.failed ? ` <span class="ov-bad">(失败 ${n(a.tasks.failed)})</span>` : ""}</td>
+        <td>${(a.tags || []).map(t => `#${esc(t)}`).join(" ") || '<span class="meta-empty">无</span>'}</td>
+        <td class="mut">${a.last_synced ? "作品同步于 " + esc(new Date(a.last_synced).toLocaleString("zh-CN")) : "作品未同步"}</td></tr>`).join("");
+    return `<tr class="ov-row${open ? " open" : ""}" tabindex="0" role="button" aria-expanded="${open}" data-ov="${i}" onclick="toggleOwnerOverview(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleOwnerOverview(this)}">
+        <td><span class="ov-caret">${open ? "▾" : "▸"}</span> <b>${esc(g.owner)}</b></td>
+        <td>${n(g.accounts)}</td><td>${n(g.active_accounts)}/${n(g.accounts)}</td><td>${n(g.works)}</td><td>${n(g.followers)}</td>
+        <td>${g.unread_dm ? `<b>${n(g.unread_dm)}</b>` : "0"}</td><td>${tasks}</td><td><div class="meta-stack">${tags}</div></td></tr>
+      <tr class="ov-detail" data-owner-key="${esc(key)}" ${open ? "" : "hidden"}><td colspan="8"><table class="ov-sub"><thead><tr><th>账号</th><th>状态</th><th>作品</th><th>粉丝</th><th>未读私信</th><th>任务</th><th>标签</th><th>最近同步</th></tr></thead><tbody>${rows}</tbody></table></td></tr>`;
+  }).join("");
+}
+function toggleOwnerOverview(tr) {
+  const detail = tr.nextElementSibling; if (!detail) return;
+  const key = detail.dataset.ownerKey, open = detail.hidden;
+  detail.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open));
+  tr.querySelector(".ov-caret").textContent = open ? "▾" : "▸";
+  if (open) OV_OPEN.add(key); else OV_OPEN.delete(key);
+}
 async function refreshAccounts() {
+  refreshOwnerOverview();
   const isCurrent = beginViewRequest("accounts");
   // 先刷新筛选选项再读筛选值:若保存后旧的归属人/标签已不存在,下拉会被重置,
   // 列表请求必须用重置后的值,否则会按旧筛选拿到过期结果。

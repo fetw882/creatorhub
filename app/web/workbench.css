@@ -753,3 +753,12 @@ button, input, textarea, select, .cs-trg, .dt-trg { border-radius:10px; }
 #acc-table thead th:last-child { width:300px; }
 @media(max-width:1200px) { #acc-table thead th:last-child { width:240px; } #acc-table thead th:nth-child(3) { width:85px; } }
 @media(max-width:860px) { #acc-table thead { display:none; } }
+
+/* 归属人总览 */
+.owner-ov .ov-row { cursor: pointer; }
+.owner-ov .ov-row:hover, .owner-ov .ov-row.open { background: color-mix(in srgb, currentColor 6%, transparent); }
+.owner-ov .ov-caret { display: inline-block; width: 1em; opacity: .7; }
+.owner-ov .ov-detail > td { padding: 4px 8px 12px 28px; }
+.owner-ov .ov-sub { width: 100%; font-size: 12px; }
+.owner-ov .ov-ok { color: #16a34a; }
+.owner-ov .ov-bad { color: #dc2626; }
