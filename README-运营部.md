@@ -21,7 +21,7 @@
 ```
 python -m app.manage create-admin --username admin      # 交互输入密码
 # 或首次启动时设置环境变量 CREATORHUB_ADMIN_PASSWORD（用完即删）
-python -m app.manage create-user --username xx --role operator --owner 李枫林
+python -m app.manage create-user --username xx --role operator --owner-name 李枫林   # 可加 --password-file
 ```
 会话 cookie `ch_session`（HttpOnly、SameSite=Lax、12h），登录失败 5 次/5 分钟锁定（按用户名和 IP）。
 
