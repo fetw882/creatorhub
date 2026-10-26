@@ -38,6 +38,8 @@ class DouyinAccount(SQLModel, table=True):
     storage_state: str = ""        # Patchright storage_state JSON(浏览器登录态)
     creator_storage_state: str = ""  # 创作中心登录态(用于自有账号评论模式)
     status: str = "active"         # active | invalid
+    owner: str = Field(default="", index=True)  # 归属人(运营负责人)
+    tags: str = ""                # JSON 字符串数组,写法同监控对象 tags
     # ── 设备/网络画像(防多账号关联风控:登录时生成一次,之后永久固定)──
     profile_dir: str = ""          # 独立持久化用户目录(Chromium user-data-dir)
     proxy: str = ""               # 该账号专属代理 http://user:pass@host:port / socks5://...

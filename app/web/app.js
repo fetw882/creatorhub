@@ -2350,12 +2350,44 @@ function waitForAccountPaint(isCurrent) {
     window.addEventListener("hashchange", finish); finish();
   });
 }
+// 归属人/标签筛选:选项来自当前平台全部账号(ALL_ACCOUNT_META),筛选交给后端。
+let ALL_ACCOUNT_META = [];
+function accountFilterQuery() {
+  const p = new URLSearchParams({ platform: PLATFORM });
+  const o = $("acc-owner-filter"), t = $("acc-tag-filter");
+  if (o && o.value) p.set("owner", o.value);
+  if (t && t.value) p.set("tag", t.value);
+  return p.toString();
+}
+async function refreshAccountFacets() {
+  try { ALL_ACCOUNT_META = await api("/api/accounts?platform=" + PLATFORM); } catch (e) { return; }
+  setFacetOptions("acc-owner-filter", "全部归属人", ALL_ACCOUNT_META.map(a => a.owner));
+  setFacetOptions("acc-tag-filter", "全部标签", ALL_ACCOUNT_META.flatMap(a => itemTags(a)));
+}
+function accountMetaCell(a) {
+  const tags = itemTags(a);
+  const owner = a.owner ? `<span class="meta-chip group" title="归属人:${esc(a.owner)}">${esc(a.owner)}</span>` : `<span class="meta-empty">无归属人</span>`;
+  return `<div class="meta-stack">${owner}${tags.map(t => `<span class="meta-chip tag" title="标签:${esc(t)}">#${esc(t)}</span>`).join("")}</div>`;
+}
+async function editAccountMeta(id) {
+  const a = ACCOUNTS.find(x => x.id === id); if (!a) return;
+  const owner = await uiPrompt({ title: "归属人", hint: (a.nickname || "") + " · 留空=清除", value: a.owner || "", placeholder: "例如:张三" });
+  if (owner === null) return;
+  const tags = await uiPrompt({ title: "标签", hint: "多个标签用逗号分隔;留空=清除", value: itemTags(a).join(","), placeholder: "例如:主号,美妆" });
+  if (tags === null) return;
+  try {
+    await api("/api/accounts/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      owner: owner.trim(), tags: tags.replace(/，/g, ",").split(",").map(x => x.trim()).filter(Boolean) }) });
+    toast("已保存归属人/标签", "ok"); refreshAccounts();
+  } catch (e) { toast("保存失败:" + e.message, "err"); }
+}
 async function refreshAccounts() {
+  refreshAccountFacets();
   const isCurrent = beginViewRequest("accounts");
   let accs, workbench = [], inbox = { items: [] };
   try {
     [accs, workbench, inbox] = await Promise.all([
-      api("/api/accounts?platform=" + PLATFORM),
+      api("/api/accounts?" + accountFilterQuery()),
       api("/api/accounts/workbench?platform=" + PLATFORM).catch(() => []),
       api("/api/dm/inbox?platform=" + PLATFORM + "&limit=100").catch(() => ({ items: [] })),
     ]);
@@ -2454,6 +2486,7 @@ async function refreshAccounts() {
         <div data-account-info hidden><div class="wb-inspector-block"><h3>账号资料</h3><p>${idline}</p><p>${esc(detail)}</p></div>
           <div class="wb-inspector-block"><h3>网络与环境</h3>${proxyLine}${browserLine}${fingerprintLine}${isolationLine}${checkLine}</div></div>
       </td>
+      <td data-account-meta>${accountMetaCell(a)}</td>
       <td><span class="pill ${a.status}">${accountStatusLabel}</span>${work.browser_open ? '<div class="mut" style="margin-top:6px"><span class="pill downloading">浏览器已打开</span></div>' : ""}${Number(task.total || 0) ? `<div class="mut" style="margin-top:6px">${Number(task.running || 0)} 执行中 · ${Number(task.blocked || 0)} 受阻 · ${Number(task.failed || 0)} 失败</div>` : ""}${work.unread_dm ? `<div class="mut" style="margin-top:4px">${Number(work.unread_dm)} 条未读私信</div>` : ""}</td>
       <td class="acttd wb-account-actions">
         <button class="ghost sm" onclick="openAccountHub(${a.id})" title="查看该账号的作品 / 关注 / 粉丝 / 私信">我的内容</button>
@@ -2468,13 +2501,14 @@ async function refreshAccounts() {
         <button class="ghost sm" onclick="setBrowserBackend(${a.id})" title="选择本地 Chrome/Patchright 或开源 Fingerprint Chromium 内核">环境</button>
         <button class="ghost sm" onclick="manageFingerprint(${a.id})" title="根据账号当前出口 IP 生成稳定指纹、时区、语言和地理位置">指纹</button>
         ${environmentCheck && environmentCheck.enabled ? `<button class="ghost sm" onclick="checkBrowserEnvironment(${a.id})" title="在该账号独立 Profile 中打开 BrowserScan，查看实际 IP、时区、WebRTC 和指纹">环境检测</button>` : ""}
+        <button class="ghost sm" onclick="editAccountMeta(${a.id})" title="设置归属人与标签">归属/标签</button>
         <button class="ghost sm" onclick="setProxy(${a.id})" title="设置/分配该账号专属代理(防多账号关联)">代理</button>
         ${a.has_proxy ? `<button class="ghost sm" onclick="testProxy(${a.id})" title="经该代理实连一次,验证可用">测代理</button>` : ""}
         <button class="ghost sm danger" onclick="delAccount(${a.id})" aria-label="删除账号">${ic("i-trash")}删除</button>
         </div>
       </td>
     </tr>`;
-  }).join("") || empty(3, "还没有账号", "i-user", "用上方按钮扫码登录,或粘贴 Cookie 添加一个账号");
+  }).join("") || empty(4, "还没有账号", "i-user", "用上方按钮扫码登录,或粘贴 Cookie 添加一个账号");
   if ($("dm-inbox-table")) $("dm-inbox-table").innerHTML = (inbox.items || []).map(row => `<tr>
     <td><b>${esc(row.account_name || `账号 #${row.account_id}`)}</b><div class="mut">${esc(PF_NAME[row.platform] || row.platform)}</div></td>
     <td><b>${esc(row.peer_nickname || row.peer_uid || "未命名会话")}</b>${row.group_chat ? '<div class="mut">群聊</div>' : ""}${row.unread_count ? `<span class="pill pending">${Number(row.unread_count)} 未读</span>` : ""}</td>

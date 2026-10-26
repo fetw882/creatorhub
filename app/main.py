@@ -1569,7 +1569,8 @@ async def overview_summary(platform: str = "douyin"):
 
 
 @app.get("/api/accounts")
-async def list_accounts(platform: str | None = None):
+async def list_accounts(platform: str | None = None, owner: str = "",
+                        tag: str = ""):
     risk_controller = engine.risk if engine else RiskController(cfg)
     with get_session() as s:
         all_accounts = s.exec(select(DouyinAccount)).all()
@@ -1585,7 +1586,12 @@ async def list_accounts(platform: str | None = None):
         q = select(DouyinAccount)
         if platform:
             q = q.where(DouyinAccount.platform == platform)
+        owner, tag = _meta_text(owner, 40), _meta_text(tag, 24)
+        if owner:
+            q = q.where(DouyinAccount.owner == owner)
         accs = s.exec(q).all()
+        if tag:
+            accs = [a for a in accs if tag in _load_meta_tags(a.tags)]
         out = []
         for a in accs:
             profile_key = profile_keys.get(a.id or 0, "")
@@ -1619,6 +1625,7 @@ async def list_accounts(platform: str | None = None):
             )
             out.append({
                 "id": a.id, "platform": a.platform, "nickname": a.nickname, "status": a.status,
+                "owner": a.owner or "", "tags": _load_meta_tags(a.tags),
                 "sec_uid": a.sec_uid, "douyin_id": a.douyin_id, "avatar": a.avatar,
                 "follower_count": a.follower_count,
                 "following_count": a.following_count,
@@ -1677,6 +1684,26 @@ async def list_accounts(platform: str | None = None):
                 "created_at": a.created_at.isoformat() if a.created_at else None,
             })
         return out
+
+
+class AccountMetaIn(BaseModel):
+    owner: str | None = None
+    tags: list[str] | None = None
+
+
+@app.patch("/api/accounts/{account_id}")
+async def update_account_meta(account_id: int, body: AccountMetaIn):
+    """修改账号归属人/标签(运营管理字段);None 表示不修改。"""
+    with get_session() as s:
+        a = s.get(DouyinAccount, account_id)
+        if not a:
+            raise HTTPException(404, "账号不存在")
+        if body.owner is not None:
+            a.owner = _meta_text(body.owner, 40)
+        if body.tags is not None:
+            a.tags = _dump_meta_tags(_meta_tags(body.tags))
+        s.add(a); s.commit(); s.refresh(a)
+        return {"id": a.id, "owner": a.owner, "tags": _load_meta_tags(a.tags)}
 
 
 # ─────────── 统一任务队列 ───────────

@@ -1942,6 +1942,10 @@
         </div>
         <button onclick="saveCookie()"><svg><use href="#i-check"/></svg>保存</button>
       </div>
+      <div class="row" id="acc-meta-filter" style="gap:8px;margin-bottom:8px">
+        <select id="acc-owner-filter" aria-label="按归属人筛选" onchange="refreshAccounts()"><option value="">全部归属人</option></select>
+        <select id="acc-tag-filter" aria-label="按标签筛选" onchange="refreshAccounts()"><option value="">全部标签</option></select>
+      </div>
       <div class="table-wrap mini-table"><table id="acc-table" aria-label="平台账号列表"><tbody></tbody></table></div>
     </div>
 
