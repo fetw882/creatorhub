@@ -1819,6 +1819,7 @@
       <button type="button" data-theme-choice="system" aria-label="跟随系统主题" aria-pressed="true" title="跟随系统"><svg aria-hidden="true"><use href="#i-monitor"/></svg></button>
     </div>
   </div>
+  <div class="team-user" id="team-user" hidden></div>
   <span class="engine" id="engine-status" role="status" aria-live="polite" title="后台任务引擎正在运行"><span class="dot live"></span><span class="engine-label">引擎运行中</span></span>
   </div>
 </header>
@@ -1828,6 +1829,10 @@
 <aside class="sidebar" id="main-sidebar" aria-label="功能导航">
   <div class="sidebar-mobile-head"><b>工作台导航</b><button class="ghost" id="nav-close" type="button" aria-label="关闭导航"><svg aria-hidden="true"><use href="#i-x"/></svg></button></div>
   <nav class="nav" aria-label="主导航">
+    <div class="nav-sep">团队</div>
+    <button class="navitem" data-tab="team-dashboard" onclick="switchTab('team-dashboard', true)"><svg><use href="#i-overview"/></svg><span class="nav-label">运营看板</span></button>
+    <button class="navitem team-admin-only" data-tab="team-users" onclick="switchTab('team-users', true)"><svg><use href="#i-shield"/></svg><span class="nav-label">用户管理</span></button>
+    <div class="nav-sep team-work-sep">工作台</div>
     <button class="navitem" data-tab="overview" onclick="switchTab('overview', true)"><svg><use href="#i-overview"/></svg><span class="nav-label">工作概览</span></button>
     <button class="navitem" data-tab="accounts" onclick="switchTab('accounts', true)"><svg><use href="#i-card"/></svg><span class="nav-label">平台账号</span><span class="nav-badge" id="tb-acc">0</span></button>
     <button class="navitem notsh-only" data-tab="monitors" onclick="switchTab('monitors', true)"><svg><use href="#i-target"/></svg><span class="nav-label">作品监控</span><span class="nav-badge" id="tb-mon">0</span></button>
@@ -1855,6 +1860,8 @@
       <p class="page-desc" id="page-desc">查看账号、监控、作品与评论的最新状态。</p>
     </div>
   </div>
+  <section data-panel="team-dashboard" style="display:none"><div id="team-dashboard-root" class="team-root"></div></section>
+  <section data-panel="team-users" style="display:none"><div id="team-users-root" class="team-root"></div></section>
   <section data-panel="overview">
   <section class="stats" aria-label="概览统计">
     <div class="stat"><span class="stat-ic a"><svg><use href="#i-user"/></svg></span><div><div class="stat-v" id="stat-acc">—</div><div class="stat-l">已登录账号</div></div></div>
@@ -3752,10 +3759,12 @@
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <button id="backtop" class="ghost" type="button" tabindex="-1" aria-hidden="true" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="返回顶部" title="返回顶部"><svg><use href="#i-next"/></svg></button>
 
-<script src="/static/submissions.js"></script>
-<script src="/static/engine-settings.js"></script>
-<script src="/static/app.js"></script>
-<script src="/static/workspace-ui.js"></script>
-<script src="/static/workbench.js"></script>
+<link rel="stylesheet" href="/static/team.css">
+<script src="/static/team.js"></script>
+<script type="text/x-team-deferred" data-src="/static/submissions.js"></script>
+<script type="text/x-team-deferred" data-src="/static/engine-settings.js"></script>
+<script type="text/x-team-deferred" data-src="/static/app.js"></script>
+<script type="text/x-team-deferred" data-src="/static/workspace-ui.js"></script>
+<script type="text/x-team-deferred" data-src="/static/workbench.js"></script>
 </body>
 </html>

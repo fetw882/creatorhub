@@ -71,8 +71,19 @@ function safeMediaUrl(value) {
 function jsArg(value) { return esc(JSON.stringify(String(value ?? ""))); }
 
 function apiFetch(path, options) {
-  return fetch(path, { ...options, credentials: "same-origin" });
+  return fetch(path, { ...options, credentials: "same-origin" }).then(r => {
+    // 团队版:会话过期/未登录时回到登录页
+    if (r.status === 401 && !String(path).startsWith("/api/auth/")) globalThis.TeamUI?.sessionExpired?.();
+    return r;
+  });
 }
+// 团队版:当前登录用户角色(team.js 在加载本文件前写入)
+const TEAM_ROLE = (globalThis.TEAM_USER && globalThis.TEAM_USER.role) || "admin";
+const TEAM_CAN = {
+  global: TEAM_ROLE === "admin" || TEAM_ROLE === "manager",
+  admin: TEAM_ROLE === "admin",
+  accounts: TEAM_ROLE !== "viewer",
+};
 
 const api = async (path, opts) => {
   const workbenchRequest = globalThis.CreatorHubWorkbench?.requestStarted?.({ path, method: (opts?.method || "GET").toUpperCase() });
@@ -1044,6 +1055,12 @@ let PLATFORM = "douyin";
 const PF_NAME = { douyin: "抖音", xhs: "小红书", kuaishou: "快手", shipinhao: "视频号" };
 let CURRENT_TAB = "overview";
 const PAGE_META = {
+  "team-dashboard": {
+    title: "运营看板", desc: "按归属人、平台和状态查看团队账号的运营情况；数据范围随登录角色自动收窄。"
+  },
+  "team-users": {
+    title: "用户管理", desc: "管理团队成员的登录账号、角色和归属人（仅管理员）。"
+  },
   overview: {
     title: "工作概览", desc: "查看待处理任务，接着推进今天的内容工作。"
   },
@@ -1422,7 +1439,8 @@ function applyMonitorForm() {
 
 // ─── 标签页切换 ───
 function switchTab(name, pushHistory = false) {
-  if (!PAGE_META[name]) name = "overview";
+  if (!PAGE_META[name]) name = "team-dashboard";
+  if (globalThis.TeamUI && !globalThis.TeamUI.allowTab(name)) name = "team-dashboard";
   globalThis.CreatorHubWorkbench?.beforeNavigate?.();
   const changed = CURRENT_TAB !== name;
   CURRENT_TAB = name;
@@ -1457,6 +1475,7 @@ function switchTab(name, pushHistory = false) {
     const title = $("page-title");
     if (title) title.focus({ preventScroll: true });
   });
+  if (name.startsWith("team-")) globalThis.TeamUI?.render?.(name);
   if (name === "hub") { refreshHubSummary(); refreshHubPanel(); }
   else stopDmStream();   // 离开本账号管理即断开私信实时流
   if (name === "share-download") {
@@ -1466,7 +1485,7 @@ function switchTab(name, pushHistory = false) {
   if (name === "collections") { populateCollectionAccount(); refreshCollections(); }
   if (name === "queue") refreshTaskQueue();
   if (name === "risk-control") refreshRiskCenter();
-  if (changed && !["hub", "share-download", "collections", "queue", "risk-control"].includes(name)) loop();
+  if (changed && !["hub", "share-download", "collections", "queue", "risk-control", "team-dashboard", "team-users"].includes(name)) loop();
 }
 
 // ─── 扫码登录(真实浏览器窗口) ───
@@ -8358,7 +8377,7 @@ async function loop() {
     hub: [refreshHubSummary],
   };
   const jobs = editing ? [] : (refreshers[tab] || []);
-  if (tab !== "queue") jobs.push(refreshTaskQueueBadge);
+  if (tab !== "queue" && TEAM_CAN.global) jobs.push(refreshTaskQueueBadge);
   try {
     const results = await Promise.allSettled(jobs.map(fn => Promise.resolve().then(() => fn())));
     const failed = _apiFailures > failuresBefore || results.some(result => result.status === "rejected");
@@ -8388,7 +8407,7 @@ $("collection-content-list").innerHTML = collectionResultSkeleton(4);
 $("queue-table").innerHTML = skeleton(7);
 
 // restore last-selected section (default: 总览);旧版四个独立页已并入「账号管理」
-const VALID_TABS = ["overview", "accounts", "risk-control", "queue", "collections", "monitors", "comments", "danmaku", "hub", "publish", "autocomment", "share-download", "notifications", "settings"];
+const VALID_TABS = ["team-dashboard", "team-users", "overview", "accounts", "risk-control", "queue", "collections", "monitors", "comments", "danmaku", "hub", "publish", "autocomment", "share-download", "notifications", "settings"];
 const LEGACY_HUB_TABS = ["myworks", "following", "fans", "dm"];
 switchTab((() => {
   try {
@@ -8396,8 +8415,8 @@ switchTab((() => {
     if (VALID_TABS.includes(hashTab)) return hashTab;
     const t = localStorage.getItem("dym-tab");
     if (LEGACY_HUB_TABS.includes(t)) { HUB_TAB = t; return "hub"; }
-    return VALID_TABS.includes(t) ? t : "overview";
-  } catch (e) { return "overview"; }
+    return VALID_TABS.includes(t) ? t : "team-dashboard";
+  } catch (e) { return "team-dashboard"; }
 })());
 switchHubTab(HUB_TAB);   // 恢复上次停留的子标签(我的作品/关注/粉丝/私信)
 
@@ -8409,7 +8428,11 @@ updateTaskQueuePlatformLabel();
 setupMonitorInterval("t-interval", 300);
 setupMonitorInterval("w-interval", 600);
 setupMonitorInterval("d-w-interval", 0, true);
-onTypeChange(); bindPubFilePicker(); onPubType(); populateWatchAccount(); applyDanmakuForm(); onAcMode(); loadSettings(); refreshAccounts(); refreshBrowserRuntimes(); refreshProxies(); refreshChannels(); loop();
+onTypeChange(); bindPubFilePicker(); onPubType(); applyDanmakuForm(); onAcMode();
+// 团队版:只预加载当前角色有权读取的数据,避免无权限接口反复报错
+if (TEAM_CAN.admin) { populateWatchAccount(); loadSettings(); refreshBrowserRuntimes(); refreshProxies(); refreshChannels(); }
+if (TEAM_CAN.accounts) refreshAccounts();
+loop();
 enhanceAllSelects();   // 把所有原生 <select> 升级为美化下拉
 enhanceAllMetaControls(); // 分组/标签：当前平台词库下拉，可搜索并新增
 enhanceAllDateTime();  // 把 datetime-local 升级为自定义日期选择器

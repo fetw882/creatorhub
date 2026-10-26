@@ -11173,7 +11173,7 @@ async def index():
                             'data-guide-base="/guide/"')
     # Version all local UI assets, including pre-paint appearance boot and CSS.
     try:
-        for asset in ("app.js", "submissions.js", "appearance.js", "appearance.css", "workspace-ui.js", "workbench.js", "workbench.css"):
+        for asset in ("app.js", "submissions.js", "appearance.js", "appearance.css", "workspace-ui.js", "workbench.js", "workbench.css", "team.js", "team.css", "engine-settings.js"):
             ver = int((WEB_DIR / asset).stat().st_mtime)
             html = html.replace(f"/static/{asset}", f"/static/{asset}?v={ver}")
     except Exception:
