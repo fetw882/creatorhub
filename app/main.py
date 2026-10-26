@@ -127,6 +127,8 @@ from .transport_matrix import (
 from .scheduling import parse_schedule, utc_iso
 from .engine.cadence import row_deadline
 from .local_access import LocalAccessMiddleware
+from .auth import TeamAuthMiddleware, init_auth, router as team_auth_router
+from .dashboard import router as team_dashboard_router
 from .submissions import submit_once, replay_if_exists
 from .notification_config import parse_config, redact_config, merge_config, redact_detail
 from .windowing import (CHROMIUM_WINDOW_CLASSES, EXPLORER_WINDOW_CLASSES,
@@ -463,6 +465,7 @@ def _seed_browser_runtimes() -> list[dict]:
 async def lifespan(app: FastAPI):
     global browser, engine, im_receiver, _webhook_delivery_task
     init_db(cfg.db_path)
+    init_auth(Path(cfg.db_path).expanduser().resolve().parent)
     try:
         with get_session() as session:
             merged_accounts = reconcile_xhs_accounts(session)
@@ -576,7 +579,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="CreatorHub", lifespan=lifespan)
+# 运营部团队版:登录/角色/归属过滤/脱敏(内层);LocalAccess 仍在最外层只允许本机访问
+app.add_middleware(TeamAuthMiddleware)
 app.add_middleware(LocalAccessMiddleware)
+app.include_router(team_auth_router)
+app.include_router(team_dashboard_router)
 WEB_DIR = Path(__file__).parent / "web"
 
 

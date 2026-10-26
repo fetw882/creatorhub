@@ -869,3 +869,28 @@ class ShareDownloadRecord(SQLModel, table=True):
     metadata_json: str = "{}"
     error: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+# ── 运营部团队版:多人登录与角色权限 ──
+class TeamUser(SQLModel, table=True):
+    """团队登录用户。role: admin | manager | operator | viewer。"""
+    __tablename__ = "team_user"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    display_name: str = ""
+    owner_name: str = Field(default="", index=True)  # 关联 DouyinAccount.owner(默认=display_name)
+    password_hash: str = ""
+    role: str = "viewer"
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login_at: Optional[datetime] = None
+
+
+class TeamSession(SQLModel, table=True):
+    """服务端会话:只存 token 的 SHA-256,不存明文 token。"""
+    __tablename__ = "team_session"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    token_hash: str = Field(index=True, unique=True)
+    user_id: int = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime = Field(default_factory=datetime.utcnow)
