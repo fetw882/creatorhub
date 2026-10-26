@@ -2404,8 +2404,11 @@ function addAccountMetaTag(tag) {
   el.value = cur.join(","); el.focus();
 }
 async function refreshAccounts() {
-  refreshAccountFacets();
   const isCurrent = beginViewRequest("accounts");
+  // 先刷新筛选选项再读筛选值:若保存后旧的归属人/标签已不存在,下拉会被重置,
+  // 列表请求必须用重置后的值,否则会按旧筛选拿到过期结果。
+  await refreshAccountFacets();
+  if (!isCurrent()) return;
   let accs, workbench = [], inbox = { items: [] };
   try {
     [accs, workbench, inbox] = await Promise.all([
