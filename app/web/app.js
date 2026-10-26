@@ -2371,15 +2371,37 @@ function accountMetaCell(a) {
 }
 async function editAccountMeta(id) {
   const a = ACCOUNTS.find(x => x.id === id); if (!a) return;
-  const owner = await uiPrompt({ title: "归属人", hint: (a.nickname || "") + " · 留空=清除", value: a.owner || "", placeholder: "例如:张三" });
-  if (owner === null) return;
-  const tags = await uiPrompt({ title: "标签", hint: "多个标签用逗号分隔;留空=清除", value: itemTags(a).join(","), placeholder: "例如:主号,美妆" });
-  if (tags === null) return;
+  const meta = ALL_ACCOUNT_META.length ? ALL_ACCOUNT_META : ACCOUNTS;
+  const owners = [...new Set(meta.map(x => x.owner).filter(Boolean))].sort((x, y) => x.localeCompare(y, "zh-CN"));
+  const allTags = [...new Set(meta.flatMap(x => itemTags(x)))].sort((x, y) => x.localeCompare(y, "zh-CN"));
+  const result = await new Promise(res => {
+    _uiResolve = res; _uiCancelVal = null;
+    _uiGetVal = () => ({ owner: $("am-owner").value.trim(),
+      tags: [...new Set($("am-tags").value.replace(/，/g, ",").split(",").map(x => x.trim()).filter(Boolean))] });
+    $("ui-body").innerHTML = `
+      <fieldset class="ui-form-group"><legend>运营归属</legend>
+        <div><label class="field" for="am-owner">归属人</label>
+          <input id="am-owner" list="am-owner-list" maxlength="40" autocomplete="off" value="${esc(a.owner || "")}" placeholder="例如:张三(可从已有归属人中选择或直接填写)" aria-describedby="am-owner-hint">
+          <datalist id="am-owner-list">${owners.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>
+          <p class="field-help" id="am-owner-hint">${owners.length ? "已有归属人:" + owners.map(esc).join("、") : "还没有归属人,直接填写即可"};留空表示清除。</p></div>
+        <div><label class="field" for="am-tags">标签</label>
+          <input id="am-tags" maxlength="300" autocomplete="off" value="${esc(itemTags(a).join(","))}" placeholder="例如:主号,美妆" aria-describedby="am-tags-hint">
+          <p class="field-help" id="am-tags-hint">多个标签用逗号分隔;留空表示清除。</p>
+          ${allTags.length ? `<div class="meta-stack" style="margin-top:6px">${allTags.map(t => `<button type="button" class="meta-chip tag" style="cursor:pointer;border:0" onclick="addAccountMetaTag(this.dataset.tag)" data-tag="${esc(t)}" title="添加标签">+${esc(t)}</button>`).join("")}</div>` : ""}</div>
+      </fieldset>`;
+    _uiOpen("编辑归属人与标签", a.nickname || ("账号 #" + a.id), { okText: "保存", icon: "i-edit" });
+  });
+  if (result === null || result === undefined) return;
   try {
-    await api("/api/accounts/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-      owner: owner.trim(), tags: tags.replace(/，/g, ",").split(",").map(x => x.trim()).filter(Boolean) }) });
+    await api("/api/accounts/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) });
     toast("已保存归属人/标签", "ok"); refreshAccounts();
   } catch (e) { toast("保存失败:" + e.message, "err"); }
+}
+function addAccountMetaTag(tag) {
+  const el = $("am-tags"); if (!el || !tag) return;
+  const cur = el.value.replace(/，/g, ",").split(",").map(x => x.trim()).filter(Boolean);
+  if (!cur.includes(tag)) cur.push(tag);
+  el.value = cur.join(","); el.focus();
 }
 async function refreshAccounts() {
   refreshAccountFacets();
@@ -2393,7 +2415,7 @@ async function refreshAccounts() {
     ]);
   }
   catch (e) {
-    if (isCurrent() && !$("acc-table").querySelector("[data-account-id]")) $("acc-table").querySelector("tbody").innerHTML = empty(3, "账号暂未加载", "i-info", "检查连接后，点击页面右上角刷新。");
+    if (isCurrent() && !$("acc-table").querySelector("[data-account-id]")) $("acc-table").querySelector("tbody").innerHTML = empty(4, "账号暂未加载", "i-info", "检查连接后，点击页面右上角刷新。");
     return;
   }
   if (!isCurrent()) return;
